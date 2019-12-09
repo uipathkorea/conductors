@@ -3,13 +3,16 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.google.gson.JsonObject;
+import com.google.gson.*;
 import com.google.gson.JsonSyntaxException;
+import java.security.NoSuchAlgorithmException;
+import java.security.KeyManagementException;
 
 public class Test {
 
 	public static void main(String[] args) {
 		try {
-			
+			Gson gson = new Gson();
 			/*________________________________________________________________*/
 			/*                    CREATE ORCHESTRATOR OBJECT                  */
 			/*                  (Automatically authenticates)                 */
@@ -17,7 +20,7 @@ public class Test {
 			/*________________________________________________________________*/
 			
 			
-			Orchestrator orch = new Orchestrator("tenant", "user", "password");
+			Orchestrator orch = new Orchestrator("lguplus", "username", "password", "https://uipath.myrobots.co.kr/", true);
 			
 			
 			/*________________________________________________________________*/
@@ -28,21 +31,24 @@ public class Test {
 			
 			Map res;
 			
-			// GET
-			res = orch.request("get", "odata/Environments", null);
-			System.out.println(res);
 			
-			
-			// PUT
 			JsonObject body = new JsonObject();
-				   body.addProperty("Name", "Asset "+UUID.randomUUID().toString().substring(0,8));
-				   body.addProperty("ValueScope", "Global");
-				   body.addProperty("ValueType", "Text");
-				   body.addProperty("StringValue", "Et tu asset 2");
-			res = orch.request("post", "odata/Assets", body.toString());
-			System.out.println(res);
+			JsonObject jbody = new JsonObject();
+			jbody.addProperty("ReleaseKey", "583a2ce1-7d5a-4ba8-89ec-68129e249997");
+			jbody.addProperty("Strategy", "Specific");
+			jbody.addProperty("Source", "Manual");
+			JsonArray robots = new JsonArray();
+			robots.add( 112);
+			jbody.add( "RobotIds", robots);
+			jbody.addProperty("InputArguments", "{\"in_Message\": \"Test for Robots\"}");
+			body.add( "startInfo", jbody);
+
+			
+			///odata/Jobs/UiPath.Server.Configuration.OData.StartJobs
+			
+			res = orch.request("post", "odata/Jobs/UiPath.Server.Configuration.OData.StartJobs", body.toString());
 			
 			
-		} catch (AuthenticationException | IOException | JsonSyntaxException e) { e.printStackTrace(); }
+		} catch (AuthenticationException | IOException | JsonSyntaxException | NoSuchAlgorithmException | KeyManagementException e) { e.printStackTrace(); }
 	}
 }
