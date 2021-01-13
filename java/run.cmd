@@ -1,2 +1,2 @@
 REM run Test with gson library 
-java -cp "gson-2.8.2.jar;." Test 
+java -Dfile.encoding=UTF-8 -cp "gson-2.8.2.jar;." Test 

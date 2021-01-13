@@ -3,6 +3,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.URL;
+import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.Map;
 
 import javax.net.ssl.HttpsURLConnection;
@@ -16,11 +18,11 @@ public class Orchestrator {
 	private static String token = "";
 	
 	public Orchestrator(String tenant, String user, String pass) throws AuthenticationException {
-		this(tenant, user, pass, "https://platform.uipath.com/");
+		this(tenant, user, pass, "https://platform.uipath.com");
 	}
 	
 	public Orchestrator(String tenant, String user, String pass, String url) throws AuthenticationException {
-		this.url = url;
+		this.url = url.endsWith("/") ? url.substring(0, url.length()-1) : url;
 		token = getToken(tenant, user, pass);
 	}
 	
@@ -35,7 +37,7 @@ public class Orchestrator {
 		// Make request & handle errors
 		Map res;
 		try {
-			res = request("POST", "api/account/authenticate", body.toString());
+			res = requestWithFolderId("POST", "/api/account/authenticate", body.toString(), null);
 		} catch (JsonSyntaxException e) {
 			throw new AuthenticationException("Response was not JSON as expected.\n" + e.getMessage());
 		} catch (IOException e) {
@@ -51,11 +53,40 @@ public class Orchestrator {
 		// Return auth token
 		return res.get("result").toString();
 	}
-	
-	
-	public Map request(String type, String extension, String body) throws IOException, JsonSyntaxException {
+
+	public ArrayList<Map> getFolders()  throws IOException, JsonSyntaxException {
+		ArrayList<Map> folders = null; 
+		Map res  = requestWithFolderId("GET", "/odata/Folders?%24select=DisplayName%2CFullyQualifiedName%2CId", null, null);
+		if( Double.parseDouble( res.get("@odata.count").toString()) >= 1.0)
+		{
+			folders = (ArrayList<Map>)res.get("value");
+			for( Map m : folders) {
+				m.put( "Id", (int)(Double.parseDouble(m.get("Id").toString())));
+			}
+		}
+		return folders;
+	}
+
+	public Map AddQueueItem ( String jsonBody, String folderId ) throws IOException, JsonSyntaxException {
+
+		return requestWithFolderId( "POST", "/odata/Queues/UiPathODataSvc.AddQueueItem", jsonBody, folderId);
+	}
+
+
+	public Map StartJob ( String jsonBody, String folderId) throws IOException, JsonSyntaxException {
+		return requestWithFolderId( "POST", "/odata/Jobs/UiPath.Server.Configuration.OData.StartJobs", jsonBody, folderId);
+	}
+
+	public Map GetJobStatus( String jobId, String folderId) throws IOException, JsonSyntaxException { 
+		return requestWithFolderId( "GET",
+			"/odata/Jobs("+jobId+")?%24select=ReleaseName%2CId%2CState%2COutputArguments%2CStartTime%2CEndTime",
+			null, folderId);
+	}
+
+
+	private Map requestWithFolderId(String type, String extension, String body, String folderId ) throws IOException, JsonSyntaxException { 
 		// Create Connection
-		URL url = new URL(this.url + extension);
+		URL url = new URL(this.url + (extension.startsWith("/") ?  extension :  "/" + extension));
 		HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
 		
 		// Compose Request
@@ -63,6 +94,8 @@ public class Orchestrator {
 		con.setRequestProperty("Content-Type", "application/json");
 		con.setRequestProperty("Authorization", "Bearer "+ Orchestrator.token);
 		con.addRequestProperty("User-Agent", "");
+		if( folderId != null && folderId.length() != 0)
+			con.addRequestProperty("X-UIPATH-OrganizationUnitId", folderId);
 		con.setDoInput(true);
 		con.setDoOutput(true);
 		
@@ -82,10 +115,14 @@ public class Orchestrator {
 		    content.append(line);
 		in.close();
 		con.disconnect();
-		
+		//System.out.println("Body : " + content.toString());
 		// Parse Response to Map
 		Map map = new Gson().fromJson(content.toString(), Map.class);
 		return map;
+	}
+
+	public Map request(String type, String extension, String body, String folderId) throws IOException, JsonSyntaxException {
+		return requestWithFolderId( type, extension, body, folderId);
 	}
 
 	
